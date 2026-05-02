@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,700;0,800;0,900;1,700;1,800&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #333; display: flex; flex-direction: column; align-items: center; padding: 20px; gap: 20px; }
+
+  html, body {
+    width: 924px;
+    overflow: hidden;
+  }
+
+  /* Frame at 924px wide, will be displayed at 600px → scale factor ~1.54 */
+  /* So sizes are: 17px × 1.54 = 26px, 13px × 1.54 = 20px, etc. */
+  .frame {
+    width: 924px;
+    height: 339px;
+    background: #EB1675;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 50px 62px;
+    position: relative;
+    font-family: 'Nunito', Arial, sans-serif;
+  }
+
+  .quote-mark {
+    font-size: 124px;
+    color: rgba(255,255,255,0.25);
+    line-height: 0.6;
+    font-family: Georgia, serif;
+    position: absolute;
+    top: 44px;
+    left: 50px;
+  }
+
+  .quote-text {
+    font-size: 26px;
+    font-weight: 700;
+    font-style: italic;
+    color: #fff;
+    line-height: 1.55;
+    margin-bottom: 22px;
+    padding-left: 12px;
+  }
+
+  .quote-author {
+    font-size: 20px;
+    font-weight: 800;
+    color: rgba(255,255,255,0.75);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding-left: 12px;
+  }
+
+  h3 { color: #fff; font-family: sans-serif; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<h3>Frame 1</h3>
+<div class="frame" id="f1">
+  <span class="quote-mark">"</span>
+  <p class="quote-text">Tant els infants com l'escola estem, altre cop, molt satisfetes amb la vostra proposta. Vam gaudir molt i els nens i nenes demanen de repetir l'experi&egrave;ncia el proper curs.</p>
+  <div class="quote-author">Anna Cabal &middot; Escola Sant Jordi, Lleida</div>
+</div>
+
+<h3>Frame 2</h3>
+<div class="frame" id="f2">
+  <span class="quote-mark">"</span>
+  <p class="quote-text">Una passada!! El nivell d'angl&egrave;s brutal, els nens han pogut interactuar al llarg de tota l'obra. Els nens i nenes han dit: les can&ccedil;ons ens han agradat molt!</p>
+  <div class="quote-author">Sandra Llad&oacute; &middot; Sagrat Cor Sarri&agrave;, Barcelona</div>
+</div>
+
+<h3>Frame 3</h3>
+<div class="frame" id="f3">
+  <span class="quote-mark">"</span>
+  <p class="quote-text">Ha sigut senzillament genial! Ens ha agradat molt a tots: mestres d'angl&egrave;s, tutores i alumnes. L'actor, el ritme de l'obra, l'escenografia... vaja, tot!</p>
+  <div class="quote-author">Nat&agrave;lia Serra &middot; Escola Verd, Girona</div>
+</div>
+
+<h3>Frame 4</h3>
+<div class="frame" id="f4">
+  <span class="quote-mark">"</span>
+  <p class="quote-text">Els alumnes van sortir encantats. Les can&ccedil;ons sense fer playback van ser genials. Tothom diu que molt b&eacute;. Aquests nois tenen una veu que posa la pell de gallina!</p>
+  <div class="quote-author">Eva Coromines &middot; ZER Alt Bergued&agrave;</div>
+</div>
+
+<h3>Frame 5</h3>
+<div class="frame" id="f5">
+  <span class="quote-mark">"</span>
+  <p class="quote-text">Fa temps que any rere any escollim les vostres obres perqu&egrave; sabem que el resultat &eacute;s assegurat. Comptem amb vosaltres altre cop pel proper curs.</p>
+  <div class="quote-author">Gemma Boix &middot; CRP de la Selva</div>
+</div>
+
+</body>
+</html>
