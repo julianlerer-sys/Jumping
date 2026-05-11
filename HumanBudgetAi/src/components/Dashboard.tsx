@@ -6,11 +6,11 @@ import {
 import { collection, query, where, onSnapshot, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
-import { BudgetCategory, BudgetItem, Invoice, MonthlyBudget, UserSettings } from '../types';
+import { BudgetCategory, BudgetItem, Invoice, MonthlyBudget, Provision, UserSettings } from '../types';
 import { calculateBudget } from '../lib/budgetLogic';
 import { format, startOfMonth, setMonth, setYear, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { TrendingUp, TrendingDown, Wallet, Calendar, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, Calendar, Settings, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function Dashboard() {
@@ -20,6 +20,7 @@ export default function Dashboard() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showProvisions, setShowProvisions] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -92,7 +93,7 @@ export default function Dashboard() {
     updateSettings(settings?.fiscalYearStartMonth || 0, activeYear + delta);
   };
 
-  const budget = calculateBudget(categories, items, invoices, startDate);
+  const { budget, provisions } = calculateBudget(categories, items, invoices, startDate);
 
   const chartData = Array.from({ length: 12 }, (_, i) => {
     const currentMonthDate = addMonths(startDate, i);
@@ -255,6 +256,70 @@ export default function Dashboard() {
           </div>
         </section>
       </div>
+
+      {provisions.length > 0 && (
+        <section className="bg-amber-50 border border-amber-200 p-6 rounded-2xl shadow-xs">
+          <button
+            onClick={() => setShowProvisions(!showProvisions)}
+            className="w-full flex items-center justify-between"
+          >
+            <h3 className="text-lg font-semibold flex items-center gap-2 text-amber-800">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Provisiones Fiscales
+              <span className="text-xs font-normal text-amber-500 font-mono">
+                {provisions.length} obligación{provisions.length !== 1 ? 'es' : ''}
+              </span>
+            </h3>
+            <span className="text-amber-500 text-sm font-bold">{showProvisions ? '▲ Ocultar' : '▼ Ver'}</span>
+          </button>
+
+          <AnimatePresence>
+            {showProvisions && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-amber-200">
+                        <th className="py-2 px-4 text-[10px] font-bold text-amber-600 uppercase tracking-wider">Fecha</th>
+                        <th className="py-2 px-4 text-[10px] font-bold text-amber-600 uppercase tracking-wider">Concepto</th>
+                        <th className="py-2 px-4 text-[10px] font-bold text-amber-600 uppercase tracking-wider">Categoría</th>
+                        <th className="py-2 px-4 text-[10px] font-bold text-amber-600 uppercase tracking-wider text-right">Importe</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-amber-100">
+                      {provisions.map((p, i) => (
+                        <tr key={i} className="hover:bg-amber-100/50 transition-colors">
+                          <td className="py-3 px-4 font-mono text-sm font-bold text-amber-800">
+                            {format(new Date(p.date + '-01'), 'MMM yyyy', { locale: es })}
+                          </td>
+                          <td className="py-3 px-4 text-sm font-medium">{p.concept}</td>
+                          <td className="py-3 px-4 text-sm text-zinc-500">{p.categoryName}</td>
+                          <td className="py-3 px-4 text-right font-mono text-sm font-bold text-amber-700">
+                            {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(p.amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="border-t-2 border-amber-300">
+                      <tr>
+                        <td colSpan={3} className="py-3 px-4 text-sm font-bold uppercase text-amber-800">Total Provisiones</td>
+                        <td className="py-3 px-4 text-right font-mono text-sm font-bold text-amber-800">
+                          {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(provisions.reduce((s, p) => s + p.amount, 0))}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
+      )}
 
       <section className="bg-white p-6 rounded-2xl border border-zinc-200 shadow-xs">
         <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">

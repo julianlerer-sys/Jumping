@@ -1,13 +1,37 @@
-import { BudgetCategory, BudgetItem, MonthlyBudget, Invoice } from '../types';
+import { BudgetCategory, BudgetItem, MonthlyBudget, Invoice, Provision, BudgetResult } from '../types';
 import { addMonths, getMonth, getYear, parseISO, startOfMonth, format } from 'date-fns';
+
+function runCustomLogic(
+  fnString: string,
+  ctx: { month: number; year: number; items: BudgetItem[]; invoices: Invoice[] }
+): { amount: number; provisions: Array<{ date: string; concept: string; amount: number }> } {
+  try {
+    // eslint-disable-next-line no-new-func
+    const runner = new Function('ctx', `
+      "use strict";
+      const {month, year, items, invoices} = ctx;
+      ${fnString}
+      return typeof calculate === 'function' ? calculate(ctx) : { amount: 0, provisions: [] };
+    `);
+    const result = runner(ctx);
+    return {
+      amount: typeof result?.amount === 'number' ? result.amount : 0,
+      provisions: Array.isArray(result?.provisions) ? result.provisions : []
+    };
+  } catch (e) {
+    console.error('Custom logic error:', e);
+    return { amount: 0, provisions: [] };
+  }
+}
 
 export function calculateBudget(
   categories: BudgetCategory[],
   items: BudgetItem[],
   invoices: Invoice[],
   startDate: Date
-): MonthlyBudget[] {
-  const result: MonthlyBudget[] = [];
+): BudgetResult {
+  const budget: MonthlyBudget[] = [];
+  const provisionsMap = new Map<string, Provision>();
   const initialDate = startOfMonth(startDate);
 
   categories.forEach(cat => {
@@ -18,7 +42,7 @@ export function calculateBudget(
       const currentPeriodDate = addMonths(initialDate, i);
       const m = getMonth(currentPeriodDate);
       const y = getYear(currentPeriodDate);
-      
+
       let monthlyTotal = 0;
 
       if (cat.logicType === 'staff') {
@@ -26,33 +50,25 @@ export function calculateBudget(
         catItems.forEach(item => {
           const baseSalary = Number(item.values?.salary || 0);
           let currentSalary = baseSalary;
-          
+
           const updates = [...(item.values?.salaryUpdates || [])].sort((a, b) => a.date.localeCompare(b.date));
-          
-          // Use YYYY-MM for the target month comparison
           const targetMonthStr = format(currentPeriodDate, 'yyyy-MM');
 
           updates.forEach(update => {
-            // update.date is YYYY-MM-DD, so we take the first 7 chars for YYYY-MM
             const updateMonthStr = update.date.substring(0, 7);
-            
             if (updateMonthStr <= targetMonthStr) {
               const val = Number(update.value) || 0;
               const type = String(update.type).trim().toLowerCase();
-              if (type === 'amount') {
-                currentSalary += val;
-              } else if (type === 'percent') {
-                currentSalary *= (1 + (val / 100));
-              }
+              if (type === 'amount') currentSalary += val;
+              else if (type === 'percent') currentSalary *= (1 + (val / 100));
             }
           });
 
           const itemTotal = currentSalary * ssRatio;
           monthlyTotal += itemTotal;
-          
-          // Debugging helper
+
           if (updates.length > 0 && (i === 0 || i === 11 || targetMonthStr.endsWith('-01'))) {
-             console.log(`[Staff] ${item.name} (${targetMonthStr}): Base ${baseSalary} -> Current ${currentSalary.toFixed(2)} (Total w/SS: ${itemTotal.toFixed(2)})`);
+            console.log(`[Staff] ${item.name} (${targetMonthStr}): Base ${baseSalary} -> Current ${currentSalary.toFixed(2)} (Total w/SS: ${itemTotal.toFixed(2)})`);
           }
         });
       } else if (cat.logicType === 'fixed') {
@@ -71,9 +87,26 @@ export function calculateBudget(
           const monthlyValues = item.values?.monthly || {};
           monthlyTotal += Number(monthlyValues[m] || 0);
         });
+      } else if (cat.logicType === 'custom' && cat.config?.customFunction) {
+        const result = runCustomLogic(cat.config.customFunction, {
+          month: m, year: y, items: catItems, invoices: catInvoices
+        });
+        monthlyTotal = result.amount;
+
+        result.provisions.forEach(p => {
+          const key = `${cat.id}|${p.date}|${p.concept}`;
+          provisionsMap.set(key, {
+            date: p.date,
+            concept: p.concept,
+            amount: p.amount,
+            categoryId: cat.id,
+            categoryName: cat.name,
+            type: cat.type
+          });
+        });
       }
 
-      result.push({
+      budget.push({
         month: m,
         year: y,
         amount: monthlyTotal,
@@ -84,5 +117,8 @@ export function calculateBudget(
     }
   });
 
-  return result;
+  return {
+    budget,
+    provisions: Array.from(provisionsMap.values()).sort((a, b) => a.date.localeCompare(b.date))
+  };
 }
