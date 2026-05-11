@@ -12,6 +12,7 @@ const LOGIC_LABELS: Record<LogicType, string> = {
   fixed: 'Fijo mensual',
   variable: 'Variable / Manual',
   invoiced: 'Previsión facturas',
+  artistic: 'Personal Artístico (IRPF)',
   custom: 'Lógica personalizada IA'
 };
 
@@ -20,6 +21,7 @@ const LOGIC_DESCRIPTIONS: Record<LogicType, string> = {
   fixed: 'Cantidades fijas que se repiten cada mes.',
   variable: 'Cantidades que pueden variar mes a mes pero son regulares.',
   invoiced: 'Basado en facturas específicas previstas (ingresos o gastos).',
+  artistic: 'Honorarios manuales mes a mes + retención IRPF Profesionales trimestral.',
   custom: 'Lógica generada por IA con cálculos personalizados.'
 };
 
@@ -61,6 +63,7 @@ export default function Categories() {
 
   const buildConfig = (form: CategoryForm) => {
     if (form.logicType === 'staff') return { ssPercentage: form.config?.ssPercentage ?? 0.3 };
+    if (form.logicType === 'artistic') return { ivaRate: form.config?.ivaRate ?? 0.21, irpfRate: form.config?.irpfRate ?? 0.15 };
     if (form.logicType === 'custom') return form.config;
     return {};
   };
@@ -202,6 +205,7 @@ export default function Categories() {
                     <option value="staff">Personal (Sueldo + SS)</option>
                     <option value="variable">Variable / Manual</option>
                     <option value="invoiced">Previsión facturas</option>
+                    <option value="artistic">Personal Artístico (IRPF)</option>
                     <option value="custom">Lógica personalizada IA</option>
                   </select>
                 </div>
@@ -215,6 +219,28 @@ export default function Categories() {
                       onChange={e => setActiveForm({ config: { ...activeForm.config, ssPercentage: Number(e.target.value) } })}
                     />
                   </div>
+                )}
+                {activeForm.logicType === 'artistic' && (
+                  <>
+                    <div>
+                      <label className="text-xs font-semibold uppercase text-zinc-400 mb-1 block">% IVA</label>
+                      <input
+                        type="number" step="0.01"
+                        className="input-standard"
+                        value={activeForm.config?.ivaRate ?? 0.21}
+                        onChange={e => setActiveForm({ config: { ...activeForm.config, ivaRate: Number(e.target.value) } })}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase text-zinc-400 mb-1 block">% IRPF Retención</label>
+                      <input
+                        type="number" step="0.01"
+                        className="input-standard"
+                        value={activeForm.config?.irpfRate ?? 0.15}
+                        onChange={e => setActiveForm({ config: { ...activeForm.config, irpfRate: Number(e.target.value) } })}
+                      />
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -284,6 +310,11 @@ export default function Categories() {
               <div className="flex items-center gap-2">
                 {cat.logicType === 'staff' && (
                   <span className="text-xs font-semibold bg-zinc-100 px-2 py-1 rounded-lg">SS: {((cat.config?.ssPercentage || 0) * 100).toFixed(0)}%</span>
+                )}
+                {cat.logicType === 'artistic' && (
+                  <span className="text-xs font-semibold bg-amber-50 text-amber-700 px-2 py-1 rounded-lg">
+                    IVA {((cat.config?.ivaRate || 0.21) * 100).toFixed(0)}% · IRPF {((cat.config?.irpfRate || 0.15) * 100).toFixed(0)}%
+                  </span>
                 )}
                 {cat.logicType === 'custom' && cat.config?.customFunction && (
                   <button

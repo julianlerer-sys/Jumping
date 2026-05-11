@@ -1,4 +1,4 @@
-export type LogicType = 'staff' | 'fixed' | 'variable' | 'invoiced' | 'custom';
+export type LogicType = 'staff' | 'fixed' | 'variable' | 'invoiced' | 'custom' | 'artistic';
 export type EntryType = 'income' | 'expense';
 
 export interface CustomField {

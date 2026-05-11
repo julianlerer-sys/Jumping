@@ -15,11 +15,29 @@ export default function AIHelper({ onSuccess, context = '' }: AIHelperProps) {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [sent, setSent] = useState(false);
 
   const handleMagic = async () => {
     if (!prompt) return;
     setLoading(true);
     setError('');
+
+    if (import.meta.env.DEV) {
+      try {
+        await fetch('/api/ai-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description: prompt, context })
+        });
+        setSent(true);
+        setPrompt('');
+      } catch {
+        setError('No se pudo conectar con el servidor de desarrollo.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     try {
       const response = await ai.models.generateContent({
@@ -87,17 +105,20 @@ Responde SOLO con JSON válido (sin markdown) con esta estructura:
         }
       });
 
-      const data = JSON.parse(response.text);
+      const raw = response.text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+      const data = JSON.parse(raw);
       onSuccess(data);
       setIsOpen(false);
       setPrompt('');
-    } catch (err) {
-      console.error("AI Error:", err);
-      setError('Error al procesar la respuesta. Inténtalo de nuevo.');
+    } catch (err: any) {
+      console.error("AI Error:", err?.message || err);
+      setError(`Error: ${err?.message || 'Respuesta inválida'}. Inténtalo de nuevo.`);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleClose = () => { setIsOpen(false); setError(''); setSent(false); };
 
   return (
     <div>
@@ -120,41 +141,55 @@ Responde SOLO con JSON válido (sin markdown) con esta estructura:
               className="bg-white w-full max-w-lg rounded-3xl p-8 shadow-2xl border border-zinc-200"
             >
               <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-sky-500 rounded-2xl shadow-lg shadow-sky-200">
+                <div className={`p-3 rounded-2xl shadow-lg ${sent ? 'bg-emerald-500 shadow-emerald-200' : 'bg-sky-500 shadow-sky-200'}`}>
                   <BrainCircuit className="w-6 h-6 text-white" />
                 </div>
                 <div>
                   <h3 className="text-xl font-bold">Asistente de Presupuesto</h3>
-                  <p className="text-sm text-zinc-500">Describe cómo funciona este gasto/ingreso. La IA generará la lógica completa.</p>
+                  <p className="text-sm text-zinc-500">
+                    {import.meta.env.DEV
+                      ? 'Modo desarrollo — la petición se enviará a Claude Code.'
+                      : 'Describe cómo funciona este gasto/ingreso. La IA generará la lógica completa.'}
+                  </p>
                 </div>
               </div>
 
-              <textarea
-                className="w-full h-36 p-4 bg-zinc-50 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-hidden transition-all resize-none text-zinc-700"
-                placeholder="Ejemplo: Tenemos un consultor externo que nos factura mensualmente. Hay que calcular IVA al 21%, retención IRPF al 15%, y generar una previsión del IRPF a pagar cada trimestre..."
-                value={prompt}
-                onChange={e => setPrompt(e.target.value)}
-              />
-
-              {error && <p className="text-xs text-rose-500 mt-2">{error}</p>}
+              {sent ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 text-center space-y-2">
+                  <p className="text-2xl">✓</p>
+                  <p className="font-bold text-emerald-800">Petición enviada</p>
+                  <p className="text-sm text-emerald-700">
+                    Recibirás una notificación y verás la petición en la terminal.<br />
+                    Escríbeme <strong>"implementa la petición pendiente"</strong> en Claude Code.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    className="w-full h-36 p-4 bg-zinc-50 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-hidden transition-all resize-none text-zinc-700"
+                    placeholder="Ejemplo: Quiero una categoría para consultor externo con IVA 21%, retención IRPF 15%, y provisiones trimestrales del IRPF..."
+                    value={prompt}
+                    onChange={e => setPrompt(e.target.value)}
+                  />
+                  {error && <p className="text-xs text-rose-500 mt-2">{error}</p>}
+                </>
+              )}
 
               <div className="flex gap-3 mt-6">
-                <button
-                  type="button"
-                  onClick={() => { setIsOpen(false); setError(''); }}
-                  className="flex-1 button-secondary"
-                >
-                  Cancelar
+                <button type="button" onClick={handleClose} className="flex-1 button-secondary">
+                  {sent ? 'Cerrar' : 'Cancelar'}
                 </button>
-                <button
-                  type="button"
-                  onClick={handleMagic}
-                  disabled={loading || !prompt}
-                  className="flex-3 button-primary bg-sky-600 hover:bg-sky-700 flex items-center justify-center gap-2"
-                >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                  Analizar y Configurar
-                </button>
+                {!sent && (
+                  <button
+                    type="button"
+                    onClick={handleMagic}
+                    disabled={loading || !prompt}
+                    className="flex-3 button-primary bg-sky-600 hover:bg-sky-700 flex items-center justify-center gap-2"
+                  >
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    {import.meta.env.DEV ? 'Enviar a Claude Code' : 'Analizar y Configurar'}
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>

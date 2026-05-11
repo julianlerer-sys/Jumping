@@ -24,7 +24,7 @@ service cloud.firestore {
       return data.keys().hasAll(['name', 'type', 'logicType', 'userId']) &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
              data.type in ['income', 'expense'] &&
-             data.logicType in ['staff', 'fixed', 'variable', 'invoiced'] &&
+             data.logicType in ['staff', 'fixed', 'variable', 'invoiced', 'artistic', 'custom'] &&
              data.userId == request.auth.uid;
     }
 

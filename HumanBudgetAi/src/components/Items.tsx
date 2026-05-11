@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
-import { BudgetCategory, BudgetItem, CustomField } from '../types';
-import { Plus, Trash2, User, FileText, Calendar, TrendingUp, ChevronDown, ChevronUp, CheckCircle2, Zap } from 'lucide-react';
+import { BudgetCategory, BudgetItem, CustomField, UserSettings } from '../types';
+import { Plus, Trash2, User, FileText, Calendar, TrendingUp, ChevronDown, ChevronUp, CheckCircle2, Zap, Gift, Music } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+const MONTH_NAMES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
 export default function Items() {
   const { user } = useAuth();
@@ -15,6 +17,7 @@ export default function Items() {
   const [newItemValue, setNewItemValue] = useState<any>(0);
   const [newItemCustomValues, setNewItemCustomValues] = useState<Record<string, any>>({});
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [fiscalStartMonth, setFiscalStartMonth] = useState<number>(0);
 
   const [updateForm, setUpdateForm] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -22,10 +25,24 @@ export default function Items() {
     value: 0
   });
 
+  const [bonusForm, setBonusForm] = useState({
+    date: new Date().toISOString().split('T')[0],
+    concept: '',
+    amount: 0
+  });
+
   useEffect(() => {
     if (!user) return;
     const qCat = query(collection(db, 'budgetCategories'), where('userId', '==', user.uid));
     const qItems = query(collection(db, 'budgetItems'), where('userId', '==', user.uid));
+
+    const qSettings = query(collection(db, 'settings'), where('userId', '==', user.uid));
+    const unsubSettings = onSnapshot(qSettings, (s) => {
+      if (!s.empty) {
+        const data = s.docs[0].data() as UserSettings;
+        setFiscalStartMonth(data.fiscalYearStartMonth ?? 0);
+      }
+    });
 
     const unsubCat = onSnapshot(qCat,
       (s) => {
@@ -39,7 +56,7 @@ export default function Items() {
       (error) => handleFirestoreError(error, OperationType.LIST, 'budgetItems')
     );
 
-    return () => { unsubCat(); unsubItems(); };
+    return () => { unsubCat(); unsubItems(); unsubSettings(); };
   }, [user]);
 
   useEffect(() => {
@@ -51,11 +68,13 @@ export default function Items() {
   const selectedCat = categories.find(c => c.id === selectedCatId);
   const catItems = items.filter(i => i.categoryId === selectedCatId);
   const customFields: CustomField[] = selectedCat?.config?.customFields || [];
+  const fiscalMonths = Array.from({ length: 12 }, (_, i) => (fiscalStartMonth + i) % 12);
 
   const buildInitialValues = () => {
     if (selectedCat?.logicType === 'staff') return { salary: newItemValue };
     if (selectedCat?.logicType === 'fixed') return { amount: newItemValue };
     if (selectedCat?.logicType === 'variable') return { monthly: {} };
+    if (selectedCat?.logicType === 'artistic') return { monthly: {} };
     if (selectedCat?.logicType === 'custom') {
       const vals: Record<string, any> = {};
       customFields.forEach(f => { vals[f.key] = newItemCustomValues[f.key] ?? f.defaultValue ?? 0; });
@@ -114,6 +133,29 @@ export default function Items() {
     }
   };
 
+  const updateMonthlyValue = async (itemId: string, monthIndex: number, val: number) => {
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+    const monthly = { ...(item.values?.monthly || {}), [monthIndex]: val };
+    try {
+      await updateDoc(doc(db, 'budgetItems', itemId), { 'values.monthly': monthly });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `budgetItems/${itemId}`);
+    }
+  };
+
+  const handleAddBonus = async (itemId: string) => {
+    const item = items.find(i => i.id === itemId);
+    if (!item || !bonusForm.amount) return;
+    const bonuses = [...(item.values.bonuses || []), { ...bonusForm }];
+    try {
+      await updateDoc(doc(db, 'budgetItems', itemId), { 'values.bonuses': bonuses });
+      setBonusForm({ ...bonusForm, concept: '', amount: 0 });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `budgetItems/${itemId}`);
+    }
+  };
+
   const calculatePreview = (baseSalary: number) => {
     if (updateForm.type === 'amount') return baseSalary + updateForm.value;
     return baseSalary * (1 + updateForm.value / 100);
@@ -128,7 +170,8 @@ export default function Items() {
   };
 
   const showItemsTable = selectedCat?.logicType !== 'invoiced' &&
-    !(selectedCat?.logicType === 'custom' && customFields.length === 0);
+    !(selectedCat?.logicType === 'custom' && customFields.length === 0) &&
+    selectedCat?.logicType !== 'artistic';
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -174,6 +217,111 @@ export default function Items() {
         {selectedCat?.logicType === 'custom' && customFields.length === 0 && (
           <div className="bg-violet-50 border border-violet-100 rounded-2xl p-6 text-sm text-violet-700">
             Esta categoría calcula a partir de facturas. Gestiona las facturas en la pestaña <strong>Facturas</strong>.
+          </div>
+        )}
+
+        {selectedCat?.logicType === 'artistic' && (
+          <div className="space-y-4">
+            {/* Add new artist */}
+            <div className="bg-white rounded-2xl border border-zinc-200 shadow-xs p-4 flex gap-3 items-center">
+              <input
+                className="flex-1 bg-transparent border-b border-zinc-200 focus:border-zinc-900 outline-hidden p-1 placeholder:text-zinc-300"
+                placeholder="Nombre del artista / profesional..."
+                value={newItemName}
+                onChange={e => setNewItemName(e.target.value)}
+              />
+              <button
+                onClick={handleAddItem}
+                disabled={!newItemName}
+                className="p-1 text-emerald-500 hover:scale-125 transition-all disabled:opacity-30"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+            </div>
+
+            {catItems.map(item => {
+              const monthly = item.values?.monthly || {};
+              const totalBase = (Object.values(monthly) as number[]).reduce((s, v) => s + Number(v), 0);
+              const irpfRate = selectedCat.config?.irpfRate || 0.15;
+              const ivaRate = selectedCat.config?.ivaRate || 0.21;
+              const totalIva = totalBase * ivaRate;
+              const totalIrpf = totalBase * irpfRate;
+              const fmt = (n: number) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
+              const isExpanded = expandedItemId === item.id;
+
+              return (
+                <div key={item.id} className="bg-white rounded-2xl border border-amber-100 shadow-xs overflow-hidden">
+                  <div className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-amber-50 rounded-lg">
+                        <Music className="w-4 h-4 text-amber-500" />
+                      </div>
+                      <div>
+                        <span className="font-medium block">{item.name}</span>
+                        <span className="text-[10px] text-zinc-400 flex gap-2 flex-wrap">
+                          <span>Base: <strong>{fmt(totalBase)}</strong></span>
+                          <span className="text-emerald-600">+IVA {fmt(totalIva)}</span>
+                          <span className="text-rose-500">−IRPF {fmt(totalIrpf)}</span>
+                          <span>→ Neto artista: <strong>{fmt(totalBase + totalIva - totalIrpf)}</strong></span>
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
+                        className="text-[10px] font-bold text-amber-600 flex items-center gap-1 hover:text-amber-700"
+                      >
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        Honorarios por mes
+                      </button>
+                      <button onClick={() => handleDelete(item.id)} className="text-zinc-300 hover:text-rose-500 transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden border-t border-amber-50"
+                      >
+                        <div className="p-4 grid grid-cols-6 md:grid-cols-12 gap-2">
+                          {fiscalMonths.map((calMonth) => (
+                            <div key={calMonth} className="text-center">
+                              <label className="text-[9px] font-bold text-zinc-400 uppercase block mb-1">{MONTH_NAMES[calMonth]}</label>
+                              <input
+                                type="number"
+                                className="w-full text-xs text-center border border-zinc-200 rounded-lg p-1.5 focus:ring-2 focus:ring-amber-400 outline-hidden"
+                                value={monthly[calMonth] || ''}
+                                placeholder="0"
+                                onChange={e => updateMonthlyValue(item.id, calMonth, Number(e.target.value))}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <div className="px-4 pb-4 grid grid-cols-3 gap-2 text-[10px]">
+                          <div className="bg-zinc-50 rounded-lg p-2 text-center">
+                            <span className="text-zinc-400 block">Factura (base + IVA {(ivaRate*100).toFixed(0)}%)</span>
+                            <span className="font-bold text-zinc-700">Aparece en el presupuesto mensual</span>
+                          </div>
+                          <div className="bg-rose-50 rounded-lg p-2 text-center">
+                            <span className="text-rose-400 block">IRPF {(irpfRate*100).toFixed(0)}% (sobre base)</span>
+                            <span className="font-bold text-rose-700">Retenido, NO se paga al artista</span>
+                          </div>
+                          <div className="bg-amber-50 rounded-lg p-2 text-center">
+                            <span className="text-amber-500 block">Provisión trimestral</span>
+                            <span className="font-bold text-amber-700">Pago a Hacienda el día 20 tras cada trimestre</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -345,6 +493,98 @@ export default function Items() {
                               ))}
                             </div>
                           )}
+
+                          {/* Bonuses */}
+                          <div className="border-t border-zinc-200 pt-6">
+                            <div className="flex items-center gap-2 mb-4">
+                              <Gift className="w-4 h-4 text-amber-500" />
+                              <h4 className="text-sm font-bold uppercase tracking-wider text-zinc-600">Bonus Puntual</h4>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
+                              <div>
+                                <label className="text-[10px] font-bold text-zinc-400 uppercase mb-1 block">Fecha</label>
+                                <input
+                                  type="date"
+                                  className="w-full text-xs p-2 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-hidden"
+                                  value={bonusForm.date}
+                                  onChange={e => setBonusForm({ ...bonusForm, date: e.target.value })}
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-zinc-400 uppercase mb-1 block">Concepto</label>
+                                <input
+                                  type="text"
+                                  className="w-full text-xs p-2 border border-zinc-200 rounded-lg outline-hidden"
+                                  placeholder="Ej. Bonus navidad"
+                                  value={bonusForm.concept}
+                                  onChange={e => setBonusForm({ ...bonusForm, concept: e.target.value })}
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-zinc-400 uppercase mb-1 block">Importe (€)</label>
+                                <input
+                                  type="number"
+                                  className="w-full text-xs p-2 border border-zinc-200 rounded-lg outline-hidden"
+                                  value={bonusForm.amount || ''}
+                                  onChange={e => setBonusForm({ ...bonusForm, amount: Number(e.target.value) })}
+                                />
+                              </div>
+                              <div className="flex items-end">
+                                <button
+                                  onClick={() => handleAddBonus(item.id)}
+                                  disabled={!bonusForm.amount}
+                                  className="w-full bg-amber-500 text-white text-xs font-bold py-2 rounded-lg hover:bg-amber-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-40"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" /> Añadir Bonus
+                                </button>
+                              </div>
+                            </div>
+
+                            {bonusForm.amount > 0 && (
+                              <div className="mt-3 bg-amber-50 p-3 rounded-xl border border-amber-100 text-xs flex items-center justify-between">
+                                <span className="text-amber-700">Bonus bruto</span>
+                                <span className="font-mono font-bold text-amber-800">
+                                  {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(bonusForm.amount)}
+                                </span>
+                                <span className="text-amber-500">+SS</span>
+                                <span className="font-mono font-bold text-amber-800">
+                                  {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(
+                                    bonusForm.amount * (1 + (selectedCat?.config?.ssPercentage || 0.3))
+                                  )}
+                                </span>
+                              </div>
+                            )}
+
+                            {item.values.bonuses?.length > 0 && (
+                              <div className="space-y-2 mt-4">
+                                <span className="text-[10px] font-bold text-zinc-400 uppercase">Bonuses Programados</span>
+                                {item.values.bonuses.map((bonus: any, idx: number) => (
+                                  <div key={idx} className="flex items-center justify-between bg-white px-4 py-2 rounded-lg border border-amber-100 text-xs">
+                                    <div className="flex items-center gap-4">
+                                      <Gift className="w-3 h-3 text-amber-400" />
+                                      <span className="font-medium">{new Date(bonus.date).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}</span>
+                                      {bonus.concept && <span className="text-zinc-500">{bonus.concept}</span>}
+                                      <span className="text-zinc-400">|</span>
+                                      <span className="font-bold text-amber-600">
+                                        {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(bonus.amount)}
+                                        <span className="text-zinc-400 font-normal ml-1">+ SS</span>
+                                      </span>
+                                    </div>
+                                    <button
+                                      onClick={async () => {
+                                        const newBonuses = item.values.bonuses.filter((_: any, i: number) => i !== idx);
+                                        await updateDoc(doc(db, 'budgetItems', item.id), { 'values.bonuses': newBonuses });
+                                      }}
+                                      className="text-zinc-300 hover:text-rose-500"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </motion.div>
                     )}
