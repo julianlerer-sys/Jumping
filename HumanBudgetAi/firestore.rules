@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Category Validation
+    function isValidCategory(data) {
+      return data.keys().hasAll(['name', 'type', 'logicType', 'userId']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.type in ['income', 'expense'] &&
+             data.logicType in ['staff', 'fixed', 'variable', 'invoiced'] &&
+             data.userId == request.auth.uid;
+    }
+
+    match /budgetCategories/{categoryId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidCategory(request.resource.data);
+      allow update: if isSignedIn() && isOwner(resource.data.userId) && isValidCategory(request.resource.data) &&
+                      request.resource.data.userId == resource.data.userId;
+      allow delete: if isSignedIn() && isOwner(resource.data.userId);
+    }
+
+    // Item Validation
+    function isValidItem(data) {
+      return data.keys().hasAll(['categoryId', 'name', 'userId']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.userId == request.auth.uid;
+    }
+
+    match /budgetItems/{itemId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidItem(request.resource.data) &&
+                      get(/databases/$(database)/documents/budgetCategories/$(request.resource.data.categoryId)).data.userId == request.auth.uid;
+      allow update: if isSignedIn() && isOwner(resource.data.userId) && isValidItem(request.resource.data);
+      allow delete: if isSignedIn() && isOwner(resource.data.userId);
+    }
+
+    // Invoice Validation
+    function isValidInvoice(data) {
+      return data.keys().hasAll(['categoryId', 'amount', 'date', 'status', 'userId']) &&
+             data.amount is number &&
+             data.status in ['predicted', 'paid'] &&
+             data.userId == request.auth.uid;
+    }
+
+    match /invoices/{invoiceId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidInvoice(request.resource.data) &&
+                      get(/databases/$(database)/documents/budgetCategories/$(request.resource.data.categoryId)).data.userId == request.auth.uid;
+      allow update: if isSignedIn() && isOwner(resource.data.userId) && isValidInvoice(request.resource.data);
+      allow delete: if isSignedIn() && isOwner(resource.data.userId);
+    }
+
+    match /settings/{settingId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+  }
+}

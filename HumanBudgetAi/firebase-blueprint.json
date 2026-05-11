@@ -1,0 +1,75 @@
+{
+  "entities": {
+    "budgetCategories": {
+      "title": "Budget Category",
+      "description": "Defines a category of income or expense with its specific calculation logic.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Display name of the category" },
+        "type": { "type": "string", "enum": ["income", "expense"], "description": "Whether it's money coming in or out" },
+        "logicType": { "type": "string", "enum": ["staff", "fixed", "variable", "invoiced"], "description": "The logic used to distribute this category" },
+        "config": { "type": "object", "description": "Specific configuration parameters for the logicType" },
+        "userId": { "type": "string", "description": "Owner of the category" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "type", "logicType", "userId"]
+    },
+    "budgetItems": {
+      "title": "Budget Item",
+      "description": "An entry within a category (e.g., a specific employee in 'Staff').",
+      "type": "object",
+      "properties": {
+        "categoryId": { "type": "string", "description": "Reference to the budgetCategories" },
+        "name": { "type": "string", "description": "Name of the item (e.g., 'John Doe')" },
+        "values": { "type": "object", "description": "Input values used by the category logic (e.g., { salary: 2000 })" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["categoryId", "name", "userId"]
+    },
+    "invoices": {
+      "title": "Invoice Tracker",
+      "description": "Specific invoices for income or expense tracking.",
+      "type": "object",
+      "properties": {
+        "categoryId": { "type": "string" },
+        "description": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["predicted", "paid"], "description": "Real status of the invoice" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["categoryId", "amount", "date", "status", "userId"]
+    },
+    "settings": {
+      "title": "User Settings",
+      "description": "Global configuration for the user's budget app.",
+      "type": "object",
+      "properties": {
+        "fiscalYearStartMonth": { "type": "integer", "description": "0-11 index of the starting month" },
+        "fiscalYearStartDay": { "type": "integer", "description": "Starting day of the month" },
+        "userId": { "type": "string" }
+      },
+      "required": ["fiscalYearStartMonth", "userId"]
+    }
+  },
+  "firestore": {
+    "budgetCategories": {
+      "schema": "budgetCategories",
+      "description": "Collection of budget categories"
+    },
+    "budgetItems": {
+      "schema": "budgetItems",
+      "description": "Items associated with categories"
+    },
+    "invoices": {
+      "schema": "invoices",
+      "description": "Tracking of actual or predicted invoices"
+    },
+    "settings": {
+      "schema": "settings",
+      "description": "User specific global settings"
+    }
+  }
+}

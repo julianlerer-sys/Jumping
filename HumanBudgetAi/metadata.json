@@ -1,0 +1,6 @@
+{
+  "name": "HumanBudget AI",
+  "description": "Aplicación de presupuestos inteligente con lógica personalizada por categoría y proyecciones mensuales automáticas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
